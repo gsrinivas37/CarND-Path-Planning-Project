@@ -8,7 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
-#include spline.h
+#include "spline.h"
 
 using namespace std;
 
@@ -203,9 +203,9 @@ int main() {
 
 	int lane = 1;
 
-	double ref_speed = 49.5;
+	double ref_vel = 49.5;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -301,7 +301,7 @@ int main() {
 							ptsy[i]= shift_x * sin(0-ref_yaw)-shift_y*cos(0-ref_yaw);
 						}
 
-						tk::spline_s;
+						tk::spline s;
 						s.set_points(ptsx,ptsy);
 					
 						vector<double> next_x_vals;
@@ -317,7 +317,7 @@ int main() {
 						double target_dist = sqrt(target_x*target_x+target_y*target_y);
 						double x_add_on = 0;
 
-						for (int = 1; i <= 50-previous_path_x.size();i++){
+						for (int i = 1; i <= 50-previous_path_x.size();i++){
 							double N = (target_dist)/(0.02*ref_vel/2.24);
 							double x_point = x_add_on+(target_x)/N;
 							double y_point = s(x_point);
@@ -335,6 +335,8 @@ int main() {
 							y_point += ref_y;
 
 							next_x_vals.push_back(x_point);
+							next_y_vals.push_back(y_point);
+
 						}
 
 
