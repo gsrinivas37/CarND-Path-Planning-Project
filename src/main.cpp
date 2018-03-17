@@ -340,12 +340,13 @@ int main() {
 				double x_ref = x_point;
 				double y_ref = y_point;
 
-				//rotate back to normal after rotating it earlier
-				//x_point= x_ref * cos(0-ref_yaw)-y_ref*sin(0-ref_yaw);
-				//y_point= x_ref * sin(0-ref_yaw)-y_ref*cos(0-ref_yaw);
+				//This transformation works fine but doesn't make sense
+				x_point= x_ref * cos(0-ref_yaw)-y_ref*sin(0-ref_yaw);
+				y_point= x_ref * sin(0-ref_yaw)-y_ref*cos(0-ref_yaw);
 				
-				x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
-				y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
+				//This transoformation is correct but generates wrong path
+				//x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
+				//y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
 
 				x_point += ref_x;
 				y_point += ref_y;
