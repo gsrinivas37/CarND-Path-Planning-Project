@@ -238,7 +238,33 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-						int prev_size = previous_path_x.size();
+			int prev_size = previous_path_x.size();
+
+			if (prev_size > 0){
+				car_s = end_path_s;
+			}
+
+			bool too_close = false;
+
+			//find vref to use
+
+			for (int i=0; i<sensor_fusion.size();i++){
+				//car is in my lane
+				float d = sensor_fusion[i][6];
+				if ((d<(2+4*lane+2))&&(d>(2+4*lane-2))){
+					double vx = sensor_fusion[i][3];
+					double vy = sensor_fusion[i][4];
+					double check_speed = sqrt((vx*vx)+(vy*vy));
+					double check_car_s = sensor_fusion[i][5];
+
+					check_car_s += ((double)prev_size*0.02*check_speed);
+
+					//check if s value is greater than mine and s gap
+					if ((check_car_s > car_s) && ((check_car_s-car_s )< 30)){
+						ref_vel = 29.5;
+					}
+				}
+			}
 
           	json msgJson;
 
@@ -298,80 +324,56 @@ int main() {
 			for (int i=0;i<ptsx.size();i++){
 				std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
 			}	
+			for (int i=0;i<ptsx.size();i++){
 
+				double shift_x = ptsx[i]-ref_x;
+				double shift_y = ptsy[i]-ref_y;
 
+				ptsx[i]= shift_x * cos(0-ref_yaw)-shift_y*sin(0-ref_yaw);
+				ptsy[i]= shift_x * sin(0-ref_yaw)+shift_y*cos(0-ref_yaw);
+			}
 
-	
-            for (int i=0;i<ptsx.size();i++){
-                double shift_x = ptsx[i]-ref_x;
-                double shift_y = ptsy[i]-ref_y;
+			std::cout << "Print sparse waypoint list after transform..." << std::endl;	
+			for (int i=0;i<ptsx.size();i++){
+				std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
+			}	
+			//create a spline
+			tk::spline s;
+			//set x,y points to the splin
+			s.set_points(ptsx,ptsy);
+			//define th final x,y points we will use for the planner
+			vector<double> next_x_vals;
+			vector<double> next_y_vals;
 
-                ptsx[i]= shift_x * cos(0-ref_yaw)-shift_y*sin(0-ref_yaw);
-                ptsy[i]= shift_x * sin(0-ref_yaw)+shift_y*cos(0-ref_yaw);
-            }
+			//start with the points from the previous path
+			for (int i = 0; i< previous_path_x.size();i++){
+				next_x_vals.push_back(previous_path_x[i]);
+				next_y_vals.push_back(previous_path_y[i]);
+			}
+			
+			double target_x = 30;
+			double target_y = s(target_x);
+			double target_dist = sqrt(target_x*target_x+target_y*target_y);
+			double x_add_on = 0;
 
-            std::cout << "Print sparse waypoint list after transform..." << std::endl;  
-            for (int i=0;i<ptsx.size();i++){
-                std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
-            }   
-            //create a spline
-            tk::spline s;
-            //set x,y points to the splin
-            std::cout << "Setting spline points..." << std::endl;   
-            s.set_points(ptsx,ptsy);
-            //define th final x,y points we will use for the planner
-            vector<double> next_x_vals;
-            vector<double> next_y_vals;
+			for (int i = 1; i <= 50-previous_path_x.size();i++){
+				double N = (target_dist)/(0.02*ref_vel/2.24);
+				double x_point = x_add_on+(target_x)/N;
+				double y_point = s(x_point);
 
-            //start with the points from the previous path
-            for (int i = 0; i< previous_path_x.size();i++){
-                next_x_vals.push_back(previous_path_x[i]);
-                next_y_vals.push_back(previous_path_y[i]);
-            }
-            
-            double target_x = 30;
-            double target_y = s(target_x);
-            double target_dist = sqrt(target_x*target_x+target_y*target_y);
-            double x_add_on = 0;
+				x_add_on = x_point;
 
-            std::cout << "Printing dense points without transform" << std::endl;
-            std::cout << "Car yaw (ref_yaw): " << ref_yaw << std::endl;
+				double x_ref = x_point;
+				double y_ref = y_point;
+				
+				x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
+				y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
 
-            for (int i = 0; i < 50-previous_path_x.size();i++){
-                double N = (target_dist)/(0.02*ref_vel/2.24);
-                double x_point = x_add_on+(target_x)/N;
-                double y_point = s(x_point);
+				x_point += ref_x;
+				y_point += ref_y;
 
-                x_add_on = x_point;
-
-                double x_ref = x_point;
-                double y_ref = y_point;
-                std::cout << "x_point: " << x_point << std::endl;
-                std::cout << "y_point: " << y_point << std::endl;
-
-                std::cout << "Before transform. Point number: " << previous_path_x.size()+i << " X Value: " << x_point << "Y Value: " << y_point << std::endl;
-
-                //This transformation works fine but doesn't make sense (it's the same as the initial transform)
-                x_point= x_ref * cos(ref_yaw)-y_ref*sin(ref_yaw);
-                y_point= x_ref * sin(ref_yaw)+y_ref*cos(ref_yaw);
-                
-
-                //This transoformation is correct but generates wrong path
-                //x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
-                //y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
-
-                x_point += ref_x;
-                y_point += ref_y;
-
-                std::cout << "ref_x: " << ref_x << std::endl;
-                std::cout << "ref:y: " << ref_y << std::endl;
-
-                std::cout << "After transform. Point number: " << previous_path_x.size()+i << " X Value: " << x_point << "Y Value: " << y_point << std::endl;
-
-
-                next_x_vals.push_back(x_point);
-                next_y_vals.push_back(y_point);
-
+				next_x_vals.push_back(x_point);
+				next_y_vals.push_back(y_point);
 			}
 			std::cout << "Print point list..." << std::endl;	
 			for (int i=0;i<next_x_vals.size();i++){
