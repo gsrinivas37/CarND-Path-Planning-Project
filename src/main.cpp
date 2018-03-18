@@ -298,63 +298,80 @@ int main() {
 			for (int i=0;i<ptsx.size();i++){
 				std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
 			}	
-			for(int i=0; i< ptsx.size(); i++)
-			{
-				double delta_x = ptsx[i] - ref_x;
-				double delta_y = ptsy[i] - ref_y;
 
-				ptsx[i] = (delta_x * cos(0-ref_yaw)) - (delta_y * sin(0-ref_yaw));
-				ptsy[i] = (delta_x * sin(0-ref_yaw)) + (delta_y * cos(0-ref_yaw));
-			}
 
-			// create spline
-			tk::spline s;
 
-			//set (x,y) points to spline 
-			s.set_points(ptsx, ptsy);
-
-         	vector<double> next_x_vals;
-         	vector<double> next_y_vals;
-
-			int start_of_prev_path = 0;
-
-			// Start with ALL of the previous path points from last time
-			for (int i=0; i < prev_size; i++)
-			{
-				next_x_vals.push_back(previous_path_x[i]);
-				next_y_vals.push_back(previous_path_y[i]);
-			}
 	
-			// Calculate how to break up spline points so that we travel at our desired reference velocity
-			double target_x = 30.0;
-			double target_y = s(target_x);
-			double target_dist = sqrt ((target_x)*(target_x) + (target_y)*(target_y) );
+            for (int i=0;i<ptsx.size();i++){
+                double shift_x = ptsx[i]-ref_x;
+                double shift_y = ptsy[i]-ref_y;
 
-			double x_add_on = 0;
+                ptsx[i]= shift_x * cos(0-ref_yaw)-shift_y*sin(0-ref_yaw);
+                ptsy[i]= shift_x * sin(0-ref_yaw)+shift_y*cos(0-ref_yaw);
+            }
 
-			// Fill up the rest of the path planner after filling it with previous points. 
-			// Here we will always put out 50 points
-			for(int i = 0; i < 50-prev_size; i++)
-			{
-				double N = (target_dist / (0.02 * ref_vel / 2.24) );   // check out the hand-drawn diagram
+            std::cout << "Print sparse waypoint list after transform..." << std::endl;  
+            for (int i=0;i<ptsx.size();i++){
+                std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
+            }   
+            //create a spline
+            tk::spline s;
+            //set x,y points to the splin
+            std::cout << "Setting spline points..." << std::endl;   
+            s.set_points(ptsx,ptsy);
+            //define th final x,y points we will use for the planner
+            vector<double> next_x_vals;
+            vector<double> next_y_vals;
 
-				double x_point = x_add_on + (target_x)/N;				
-				double y_point = s(x_point);
+            //start with the points from the previous path
+            for (int i = 0; i< previous_path_x.size();i++){
+                next_x_vals.push_back(previous_path_x[i]);
+                next_y_vals.push_back(previous_path_y[i]);
+            }
+            
+            double target_x = 30;
+            double target_y = s(target_x);
+            double target_dist = sqrt(target_x*target_x+target_y*target_y);
+            double x_add_on = 0;
 
-				x_add_on = x_point;
+            std::cout << "Printing dense points without transform" << std::endl;
+            std::cout << "Car yaw (ref_yaw): " << ref_yaw << std::endl;
 
-				double x_ref = x_point;
-				double y_ref = y_point;
+            for (int i = 0; i < 50-previous_path_x.size();i++){
+                double N = (target_dist)/(0.02*ref_vel/2.24);
+                double x_point = x_add_on+(target_x)/N;
+                double y_point = s(x_point);
 
-				// rotate back to World Map coordinates 
-				x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
-				y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
+                x_add_on = x_point;
 
-				x_point += ref_x;
-				y_point += ref_y;
+                double x_ref = x_point;
+                double y_ref = y_point;
+                std::cout << "x_point: " << x_point << std::endl;
+                std::cout << "y_point: " << y_point << std::endl;
 
-				next_x_vals.push_back(x_point);
-				next_y_vals.push_back(y_point);
+                std::cout << "Before transform. Point number: " << previous_path_x.size()+i << " X Value: " << x_point << "Y Value: " << y_point << std::endl;
+
+                //This transformation works fine but doesn't make sense (it's the same as the initial transform)
+                x_point= x_ref * cos(ref_yaw)-y_ref*sin(ref_yaw);
+                y_point= x_ref * sin(ref_yaw)+y_ref*cos(ref_yaw);
+                
+
+                //This transoformation is correct but generates wrong path
+                //x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
+                //y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
+
+                x_point += ref_x;
+                y_point += ref_y;
+
+                std::cout << "ref_x: " << ref_x << std::endl;
+                std::cout << "ref:y: " << ref_y << std::endl;
+
+                std::cout << "After transform. Point number: " << previous_path_x.size()+i << " X Value: " << x_point << "Y Value: " << y_point << std::endl;
+
+
+                next_x_vals.push_back(x_point);
+                next_y_vals.push_back(y_point);
+
 			}
 			std::cout << "Print point list..." << std::endl;	
 			for (int i=0;i<next_x_vals.size();i++){
