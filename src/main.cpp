@@ -199,9 +199,11 @@ int main() {
 
 	int lane = 1;
 
-	double ref_vel = 49.5;
+	double ref_vel = 0;
+	const double speed_limit = 50;
+	double target_vel = speed_limit-0.5;
 
-  h.onMessage([&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&speed_limit,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -239,12 +241,14 @@ int main() {
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
 			int prev_size = previous_path_x.size();
-
+			double instant_car_s = car_s;
 			if (prev_size > 0){
 				car_s = end_path_s;
 			}
 
 			bool too_close = false;
+			double target_vel = speed_limit-0.5;
+
 
 			//find vref to use
 
@@ -261,11 +265,49 @@ int main() {
 
 					//check if s value is greater than mine and s gap
 					if ((check_car_s > car_s) && ((check_car_s-car_s )< 30)){
-						ref_vel = 29.5;
+						too_close = true;
+						target_vel = check_speed;
+					}
+					
+				}
+			}
+			if (ref_vel > target_vel){
+				ref_vel -= 0.7;
+			}
+			else if (ref_vel < target_vel){
+				ref_vel += 0.7;
+			}
+			vector<bool> lane_available = {true,true,true};
+				const float minimum_gap = 10;
+				//check other lanes for available spaces
+				
+			for (int inspect_lane = 0; inspect_lane<=2;inspect_lane++){
+				for (int i=0; i<sensor_fusion.size();i++){
+					float d = sensor_fusion[i][6];
+					if ((d<(2+4*inspect_lane+2))&&(d>(2+4*inspect_lane-2))){
+						double check_car_s = sensor_fusion[i][5];
+						if (abs(check_car_s - instant_car_s)<minimum_gap){
+							lane_available[inspect_lane] = false;
+						}
 					}
 				}
 			}
+			
+			for (int i=0;i<lane_available.size();i++){
+				std::cout << "Lane " << i+1 << " available " << lane_available[i] << std::endl;
+			}
 
+			if (target_vel<(speed_limit-0.5)){
+				std::cout << "target_vel < speed_limit is met" << std::endl;
+				for (int i=0;i<lane_available.size();i++){
+					std::cout << "checking for available lane " << i << std::endl;
+					if (lane_available[i]==true&&i!=lane){
+						std::cout << "lane " << i << " is available, making lane change" << std::endl;
+						lane=i;
+						break;
+					}
+				}
+			}
           	json msgJson;
 
 			//Create a list of widely spacex x, y points, later we will interpolate the space between these points using a spline
@@ -320,10 +362,10 @@ int main() {
 			ptsy.push_back(next_wp1[1]);
 			ptsy.push_back(next_wp2[1]);
 
-			std::cout << "Print sparse waypoint list before transform..." << std::endl;	
-			for (int i=0;i<ptsx.size();i++){
-				std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
-			}	
+			//std::cout << "Print sparse waypoint list before transform..." << std::endl;	
+			//for (int i=0;i<ptsx.size();i++){
+			//	std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
+			//}	
 			for (int i=0;i<ptsx.size();i++){
 
 				double shift_x = ptsx[i]-ref_x;
@@ -333,10 +375,11 @@ int main() {
 				ptsy[i]= shift_x * sin(0-ref_yaw)+shift_y*cos(0-ref_yaw);
 			}
 
-			std::cout << "Print sparse waypoint list after transform..." << std::endl;	
-			for (int i=0;i<ptsx.size();i++){
-				std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
-			}	
+			//std::cout << "Print sparse waypoint list after transform..." << std::endl;	
+			//for (int i=0;i<ptsx.size();i++){
+			//	std::cout << "Point number: " << i << " X Value: " << ptsx[i] << " Y Value: " << ptsy[i] << std::endl;
+			//}
+
 			//create a spline
 			tk::spline s;
 			//set x,y points to the splin
@@ -375,10 +418,10 @@ int main() {
 				next_x_vals.push_back(x_point);
 				next_y_vals.push_back(y_point);
 			}
-			std::cout << "Print point list..." << std::endl;	
-			for (int i=0;i<next_x_vals.size();i++){
-				std::cout << "Point number: " << i << "X Value: " << next_x_vals[i] << "Y Value: " << next_y_vals[i] << std::endl;
-			}	
+			//std::cout << "Print point list..." << std::endl;	
+			//for (int i=0;i<next_x_vals.size();i++){
+			//	std::cout << "Point number: " << i << "X Value: " << next_x_vals[i] << "Y Value: " << next_y_vals[i] << std::endl;
+			//}	
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
