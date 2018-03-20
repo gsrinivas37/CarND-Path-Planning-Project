@@ -393,7 +393,7 @@ int main() {
 				ptsy.push_back(ref_y_prev);
 				ptsy.push_back(ref_y);
 			}
-			//Create points that are 30, 60 and 90 meters in front of us. Convert them from relative to absolute coordinates
+			//Create points that are 40, 80 and 120 meters in front of us. Convert them from relative to absolute coordinates
 			vector<double> next_wp0 = getXY(car_s + 40, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
 			vector<double> next_wp1 = getXY(car_s + 80, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
 			vector<double> next_wp2 = getXY(car_s + 120, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
