@@ -197,13 +197,13 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-	int lane = 1;
-
+	int lane = 2;
+  	int lead_vehicle = -1;
 	double ref_vel = 0;
-	const double speed_limit = 50;
+	const double speed_limit = 50/2.24;
 	double target_vel = speed_limit-0.5;
 
-  h.onMessage([&speed_limit,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&lead_vehicle,&speed_limit,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -248,10 +248,9 @@ int main() {
 
 			bool too_close = false;
 			double target_vel = speed_limit-0.5;
-
+			double lead_dist_threshold = 50;
 
 			//find vref to use
-
 			for (int i=0; i<sensor_fusion.size();i++){
 				//car is in my lane
 				float d = sensor_fusion[i][6];
@@ -265,43 +264,88 @@ int main() {
 
 					//check if s value is greater than mine and s gap
 					if ((check_car_s > car_s) && ((check_car_s-car_s )< 30)){
-						too_close = true;
-						target_vel = check_speed;
+						lead_vehicle=sensor_fusion[i][0];
+						break;
 					}
 					
 				}
+				lead_vehicle = -1;
 			}
+			if (lead_vehicle != -1){
+				int lead_vehicle_idx = -1;
+				for (int i=0;i<sensor_fusion.size();i++){
+					if (sensor_fusion[i][0]==lead_vehicle){
+						lead_vehicle_idx = i;
+					}
+				}
+				double lead_s = sensor_fusion[lead_vehicle_idx][5];
+				double y = sensor_fusion[lead_vehicle_idx][2];
+				double dist_to_lead = lead_s-car_s;
+				double vx = sensor_fusion[lead_vehicle_idx][3];
+				double vy = sensor_fusion[lead_vehicle_idx][4];
+				double lead_speed = sqrt((vx*vx)+(vy*vy));
+				const double safety_distance = 2;
+				target_vel = lead_speed;
+				std::cout << "Lead car speed: " << lead_speed << " distance: " << dist_to_lead << std::endl;
+
+				if (dist_to_lead > lead_dist_threshold){
+					lead_vehicle = -1;
+					target_vel = speed_limit;
+				}
+				if (dist_to_lead < safety_distance){
+					target_vel = lead_speed-0.2;
+				}
+			}
+			std::cout << "Lead vehicle: " << lead_vehicle << std::endl;
+			std::cout << "ref_vel: " << ref_vel << " target_vel: " << target_vel << " speed limit: " << speed_limit << std::endl;
 			if (ref_vel > target_vel){
-				ref_vel -= 0.7;
+				ref_vel -= 0.7/2.24;
 			}
 			else if (ref_vel < target_vel){
-				ref_vel += 0.7;
+				ref_vel += 0.7/2.24;
 			}
 			vector<bool> lane_available = {true,true,true};
+			vector<double> lane_speed = {speed_limit, speed_limit, speed_limit};
 				const float minimum_gap = 10;
+				const float lane_look_ahead = 50;
 				//check other lanes for available spaces
 				
 			for (int inspect_lane = 0; inspect_lane<=2;inspect_lane++){
+				//we start with the lane speed being the speed limit
+				lane_speed[inspect_lane] = speed_limit;
+				
 				for (int i=0; i<sensor_fusion.size();i++){
+					//we look for other cars that might be slowing down the lane
 					float d = sensor_fusion[i][6];
-					if ((d<(2+4*inspect_lane+2))&&(d>(2+4*inspect_lane-2))){
+					if ((d<(2+4*inspect_lane+2))&&(d>(2+4*inspect_lane-2))){ //checking cars in the analyzed lane
 						double check_car_s = sensor_fusion[i][5];
-						if (abs(check_car_s - instant_car_s)<minimum_gap){
+						if (abs(check_car_s - instant_car_s)<minimum_gap){//if there is a car close to us, the lane is unavailable
 							lane_available[inspect_lane] = false;
+						}
+						else if ((check_car_s - instant_car_s)<lane_look_ahead && check_car_s > instant_car_s){
+							double car_ahead_vx = sensor_fusion[i][3];
+							double car_ahead_vy = sensor_fusion[i][4];
+							double car_ahead_v = sqrt(car_ahead_vx*car_ahead_vx+car_ahead_vy*car_ahead_vy);
+							lane_speed[inspect_lane] = car_ahead_v;
+							std::cout << "Adjusting lane " << inspect_lane << " speed to " << car_ahead_v << std::endl;
 						}
 					}
 				}
 			}
 			
 			for (int i=0;i<lane_available.size();i++){
-				std::cout << "Lane " << i+1 << " available " << lane_available[i] << std::endl;
+				std::cout << "Lane " << i+1 << " available " << lane_available[i] << " speed: " << lane_speed[i] <<std::endl;
 			}
 
 			if (target_vel<(speed_limit-0.5)){
 				std::cout << "target_vel < speed_limit is met" << std::endl;
 				for (int i=0;i<lane_available.size();i++){
 					std::cout << "checking for available lane " << i << std::endl;
-					if (lane_available[i]==true&&i!=lane){
+					if (lane_available[i]==true && abs(lane-i)==1 && lane_speed[i]>lane_speed[lane]){
+						//Before changing lanes we check that:
+						// Lane is available
+						// Lane is contiguous to current lane (no changing 2 lanes at once)
+						// Lane speed in faster than current lane
 						std::cout << "lane " << i << " is available, making lane change" << std::endl;
 						lane=i;
 						break;
@@ -400,7 +444,7 @@ int main() {
 			double x_add_on = 0;
 
 			for (int i = 1; i <= 50-previous_path_x.size();i++){
-				double N = (target_dist)/(0.02*ref_vel/2.24);
+				double N = (target_dist)/(0.02*ref_vel);
 				double x_point = x_add_on+(target_x)/N;
 				double y_point = s(x_point);
 
