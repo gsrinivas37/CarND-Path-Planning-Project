@@ -197,7 +197,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-	int lane = 2;
+	int lane = 1;
   	int lead_vehicle = -1;
 	double ref_vel = 0;
 	const double speed_limit = 50/2.24;
@@ -394,9 +394,9 @@ int main() {
 				ptsy.push_back(ref_y);
 			}
 			//Create points that are 30, 60 and 90 meters in front of us. Convert them from relative to absolute coordinates
-			vector<double> next_wp0 = getXY(car_s + 30, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
-			vector<double> next_wp1 = getXY(car_s + 60, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
-			vector<double> next_wp2 = getXY(car_s + 90, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> next_wp0 = getXY(car_s + 40, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> next_wp1 = getXY(car_s + 80, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
+			vector<double> next_wp2 = getXY(car_s + 120, 2+4*lane, map_waypoints_s,map_waypoints_x,map_waypoints_y);
 
 			ptsx.push_back(next_wp0[0]);
 			ptsx.push_back(next_wp1[0]);
